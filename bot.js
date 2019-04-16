@@ -1,3 +1,7 @@
+// Initial random statement code borrowed from Reddit user "Californ1a" and adapted
+
+
+
 var Discord = require('discord.js');
 var bot = new Discord.Client();
 var randomMessage;
@@ -52,7 +56,7 @@ bot.on('message', (msg) => {
   }
 });
  
-bot.login(process.end.BOT_TOKEN);
+bot.login(process.env.BOT_TOKEN);
  
 function randomIntFromInterval(min, max) {
   return Math.floor(Math.random()*(max-min+1)+min);
