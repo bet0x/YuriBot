@@ -1,2 +1,2 @@
 # YuriBot
-Messing with Discord bots/weeb stuff
+Messing with Discord bots/being a weeb
