@@ -1,12 +1,28 @@
 // Initial random statement code borrowed from Reddit user "Californ1a" and adapted
 
-
-
+const fs = require('fs');
 var Discord = require('discord.js');
 var bot = new Discord.Client();
-var randomMessage;
-var randOn = false;
-var responseArray = [ //add more messages here
+bot.commands = new Discord.Collection();
+const cooldowns = new Discord.Collection();
+
+// array of all js files in the commands folder
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+// Associates each file's command with name
+for (const file of commandFiles) {
+	const command = require(`./commands/${file}`);
+	bot.commands.set(command.name, command);
+}
+//TODO: change these to be whatever pics yuri uses
+global.knifeFiles = fs.readdirSync('./cool knife photos');
+//global.catFiles = fs.readdirSync('./amazing cute kittens');
+
+global.randomMessage; // holds msg
+global.randOn = false; // to check if bot's random talking is on
+
+// TODO: add lots of dialogue
+global.responseArray = [
   "I guess there's a little devil inside all of us, isn't there?",
   "...",
   "Sigh...",
@@ -25,51 +41,87 @@ var responseArray = [ //add more messages here
   "I'm really glad that you're such an understanding person... And I'm really glad that you joined this club.",
   "My heart...just won't stop pounding, for some reason..."
 ];
-var prefix = "!";
-var timer = [7200, 21600]; //set min and max in seconds for random messages
- 
+
+global.prefix = "!";
+global.timer = [7200, 21600]; // set min and max in seconds for random messages
+
+// Starts bot (should run once, change to once() instead of on() if problems)
 bot.on("ready", () => {
-    console.log("Bot online and ready on " + bot.guilds.size + " server(s).");
+    console.log("Bot ready on " + bot.guilds.size + " server(s).");
 });
- 
+
+// Bot command code
 bot.on('message', (msg) => {
-  if (msg.content.startsWith(prefix + "onYuri")) {
-        if (randOn) {
-            msg.channel.sendMessage("Sorry... I sometimes struggle to put my thoughts into words.");
-        }
-        else {
-            msg.channel.sendMessage("Y-you want to talk to... me?");
-			randomMessage = setTimeout(function() {
-                randMsg(msg.channel);
-            }, 1000*timer[0]);
-        }
+
+  // return right away if needed
+  if (!msg.content.startsWith(prefix) || msg.author.bot) return;
+
+  // cut off prefix ('!') and split rest by spaces
+  const args = msg.content.slice(prefix.length).split(/ +/);
+
+  //just lowercase to be less annoying
+  const commandName = args.shift().toLowerCase();
+
+  // Find command, or if it is an alias, use that
+  const command = bot.commands.get(commandName)
+      || bot.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+  if (!command) return;
+
+
+  // Each command's js file can specify args; if specified and there aren't args, explain problem
+  // (may have to check arg count later as well, this could crash/cause problem if args are given but not enough of them)
+  if (command.args && !args.length) {
+      let reply = "You didn't provide any arguments, ${msg.author}!";
+      if (command.usage) {
+          reply += "\nThe proper usage would be: \'${prefix}${command.name} ${command.usage}\'";
+      }
+      return msg.channel.send(reply);
   }
-  else if (msg.content.startsWith(prefix + "offYuri")) {
-        if (randOn) {
-            clearTimeout(randomMessage);
-            msg.channel.sendMessage("I mean... s-sorry...");
-        }
-        else {
-			clearTimeout(randomMessage);
-            msg.channel.sendMessage("I mean... s-sorry...");
-        }
+
+  // Check for command being set in the cooldowns collection
+  if (!cooldowns.has(command.name)) {
+      cooldowns.set(command.name, new Discord.Collection());
+  }
+
+  // Get current time; check collection for timestamps/author stuff; make cooldown time (default 3secs)
+  const now = Date.now();
+  const timestamps = cooldowns.get(command.name);
+  const cooldownAmount = (command.cooldown || 3) * 1000;
+
+  // check if expired
+  if (timestamps.has(msg.author.id)) {
+      const expirationTime = timestamps.get(msg.author.id) + cooldownAmount;
+      if (now < expirationTime) {
+          const timeLeft = (expirationTime - now) / 1000;
+	  return msg.reply("Uh.. I can't do that for " + timeLeft.toFixed(1) + " more second(s)...");
+	}
+  }
+  // not in there? set to expire
+  else {
+      timestamps.set(msg.author.id, now);
+      setTimeout(() => timestamps.delete(msg.author.id), cooldownAmount);
+  }
+  try {
+    command.execute(msg, args);
+  } catch (error) {
+    console.error(error);
+    msg.reply('there was an error trying to execute that command!');
   }
 });
- 
 bot.login(process.env.BOT_TOKEN);
- 
-function randomIntFromInterval(min, max) {
+
+global.randomIntFromInterval=function(min, max) {
   return Math.floor(Math.random()*(max-min+1)+min);
-}
- 
-function randMsg(msgChan) {
-    console.log("callback");
-    var interval = 1000*randomIntFromInterval(timer[0],timer[1]);
+};
+
+global.randMsg=function(msgChan) {
+  var interval = 1000*randomIntFromInterval(timer[0],timer[1]);
   var rand = randomIntFromInterval(0,responseArray.length-1);
   if(responseArray[rand]) {
     msgChan.sendMessage(responseArray[rand]);
   }
-    randomMessage = setTimeout(function() {
+  randomMessage = setTimeout(function() {
         randMsg(msgChan);
-    }, interval);
-}
+  }, interval);
+};
